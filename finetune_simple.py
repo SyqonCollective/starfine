@@ -121,12 +121,10 @@ class StarNetNoReduce512(nn.Module):
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
         self.down4 = Down(512, 512)
-
         self.att4 = AttentionBlock(1024, 512, 256)
         self.att3 = AttentionBlock(512, 256, 128)
         self.att2 = AttentionBlock(256, 128, 64)
         self.att1 = AttentionBlock(128, 64, 32)
-
         self.up1 = Up(1024, 512)
         self.conv1 = DoubleConv(512+512, 256)
         self.up2 = Up(512, 256)
@@ -136,6 +134,8 @@ class StarNetNoReduce512(nn.Module):
         self.up4 = Up(128, 64)
         self.conv4 = DoubleConv(64+64, 64)
         self.outc = nn.Conv2d(64, 3, kernel_size=1)
+
+# Remove any stray 'self' or code outside methods
 
     def forward(self, x):
         x1 = self.inc(x)      # 64
