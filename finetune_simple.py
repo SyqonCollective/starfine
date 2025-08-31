@@ -57,13 +57,12 @@ class StarNetNoReduce512(nn.Module):
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
         self.down4 = Down(512, 512)  # NoReduce512: mantiene 512 canali
-
-    # up1: input 512, output 256 (dopo upsample, concat con x4: 512+512=1024)
-    self.up1 = Up(512, 256)
-    self.up2 = Up(256, 128)
-    self.up3 = Up(128, 64)
-    self.up4 = Up(64, 64)
-    self.outc = nn.Conv2d(64, 3, kernel_size=1)
+        # up1: input 512, output 256 (dopo upsample, concat con x4: 512+512=1024)
+        self.up1 = Up(512, 256)
+        self.up2 = Up(256, 128)
+        self.up3 = Up(128, 64)
+        self.up4 = Up(64, 64)
+        self.outc = nn.Conv2d(64, 3, kernel_size=1)
 
     def forward(self, x):
         x1 = self.inc(x)
