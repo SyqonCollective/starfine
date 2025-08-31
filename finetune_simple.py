@@ -53,18 +53,11 @@ class Up(nn.Module):
     """Upscaling + double conv"""
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        # up: da in_channels → out_channels
         self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
-        # dopo la concat (skip + up) = out_channels*2
-        self.conv = DoubleConv(out_channels * 2, out_channels)
+        self.conv = DoubleConv(out_channels, out_channels)
 
-    def forward(self, x1, x2):
-        x1 = self.up(x1)
-        diffY = x2.size()[2] - x1.size()[2]
-        diffX = x2.size()[3] - x1.size()[3]
-        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
-                        diffY // 2, diffY - diffY // 2])
-        x = torch.cat([x2, x1], dim=1)
+    def forward(self, x, _):
+        x = self.up(x)
         return self.conv(x)
 
 class AttentionBlock(nn.Module):
@@ -106,27 +99,35 @@ class StarNetNoReduce512(nn.Module):
         self.att2 = AttentionBlock(128, 128, 64)
         self.att1 = AttentionBlock(64, 64, 32)
 
-        self.up1 = Up(512, 256)
-        self.up2 = Up(256, 128)
-        self.up3 = Up(128, 64)
-        self.up4 = Up(64, 64)
-        self.outc = nn.Conv2d(64, 3, kernel_size=1)
+    self.up1 = Up(1024, 256)
+    self.up2 = Up(512, 128)
+    self.up3 = Up(256, 64)
+    self.up4 = Up(128, 64)
+    self.outc = nn.Conv2d(64, 3, kernel_size=1)
 
     def forward(self, x):
-        x1 = self.inc(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
+        x1 = self.inc(x)      # 64
+        x2 = self.down1(x1)  # 128
+        x3 = self.down2(x2)  # 256
+        x4 = self.down3(x3)  # 512
+        x5 = self.down4(x4)  # 512
 
-        x4a = self.att4(g=x5, x=x4)
-        x = self.up1(x5, x4a)
+        x4a = self.att4(g=x5, x=x4)  # 512
+        x = torch.cat([x5, x4a], dim=1)  # 512+512=1024
+        x = self.up1(x, None)
+
         x3a = self.att3(g=x, x=x3)
-        x = self.up2(x, x3a)
+        x = torch.cat([x, x3a], dim=1)  # 256+256=512
+        x = self.up2(x, None)
+
         x2a = self.att2(g=x, x=x2)
-        x = self.up3(x, x2a)
+        x = torch.cat([x, x2a], dim=1)  # 128+128=256
+        x = self.up3(x, None)
+
         x1a = self.att1(g=x, x=x1)
-        x = self.up4(x, x1a)
+        x = torch.cat([x, x1a], dim=1)  # 64+64=128
+        x = self.up4(x, None)
+
         return self.outc(x)
 
 # =================== DATASET MINIMAL ===================
