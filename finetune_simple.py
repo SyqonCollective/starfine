@@ -67,6 +67,31 @@ class Up(nn.Module):
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
 
+class AttentionBlock(nn.Module):
+    def __init__(self, F_g, F_l, F_int):
+        super().__init__()
+        self.W_g = nn.Sequential(
+            nn.Conv2d(F_g, F_int, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.BatchNorm2d(F_int)
+        )
+        self.W_x = nn.Sequential(
+            nn.Conv2d(F_l, F_int, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.BatchNorm2d(F_int)
+        )
+        self.psi = nn.Sequential(
+            nn.Conv2d(F_int, 1, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.BatchNorm2d(1),
+            nn.Sigmoid()
+        )
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, g, x):
+        g1 = self.W_g(g)
+        x1 = self.W_x(x)
+        psi = self.relu(g1 + x1)
+        psi = self.psi(psi)
+        return x * psi
+
 class StarNetNoReduce512(nn.Module):
     def __init__(self):
         super().__init__()
@@ -74,8 +99,13 @@ class StarNetNoReduce512(nn.Module):
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
-        self.down4 = Down(512, 512)  # NoReduce512: mantiene 512 canali
-        # up1: input 512, output 256 (dopo upsample, concat con x4: 512+512=1024)
+        self.down4 = Down(512, 512)
+
+        self.att4 = AttentionBlock(512, 512, 256)
+        self.att3 = AttentionBlock(256, 256, 128)
+        self.att2 = AttentionBlock(128, 128, 64)
+        self.att1 = AttentionBlock(64, 64, 32)
+
         self.up1 = Up(512, 256)
         self.up2 = Up(256, 128)
         self.up3 = Up(128, 64)
@@ -88,12 +118,15 @@ class StarNetNoReduce512(nn.Module):
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
-        
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
-        
+
+        x4a = self.att4(g=x5, x=x4)
+        x = self.up1(x5, x4a)
+        x3a = self.att3(g=x, x=x3)
+        x = self.up2(x, x3a)
+        x2a = self.att2(g=x, x=x2)
+        x = self.up3(x, x2a)
+        x1a = self.att1(g=x, x=x1)
+        x = self.up4(x, x1a)
         return self.outc(x)
 
 # =================== DATASET MINIMAL ===================
