@@ -67,12 +67,13 @@ class StarNetSimple(nn.Module):
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
-        self.down4 = Down(512, 1024)
+        self.down4 = Down(512, 512)  # NoReduce512: mantiene 512 canali
         
-        self.up1 = Up(1024, 512)
-        self.up2 = Up(512, 256)
-        self.up3 = Up(256, 128)
-        self.up4 = Up(128, 64)
+        # Le dimensioni degli Up devono matchare il checkpoint originale
+        self.up1 = Up(1024, 256)     # concat(512 up + 512 skip) = 1024 input, 256 output
+        self.up2 = Up(512, 128)      # concat(256 up + 256 skip) = 512 input, 128 output  
+        self.up3 = Up(256, 64)       # concat(128 up + 128 skip) = 256 input, 64 output
+        self.up4 = Up(128, 64)       # concat(64 up + 64 skip) = 128 input, 64 output
         self.outc = nn.Conv2d(64, 3, kernel_size=1)
 
     def forward(self, x):
