@@ -79,6 +79,9 @@ class AttentionBlock(nn.Module):
     def forward(self, g, x):
         g1 = self.W_g(g)
         x1 = self.W_x(x)
+        # Resize x1 a g1 se shape diverse
+        if g1.shape[2:] != x1.shape[2:]:
+            x1 = F.interpolate(x1, size=g1.shape[2:], mode='bilinear', align_corners=False)
         psi = self.relu(g1 + x1)
         psi = self.psi(psi)
         return x * psi
