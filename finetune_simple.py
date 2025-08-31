@@ -122,44 +122,44 @@ class StarNetNoReduce512(nn.Module):
         self.down3 = Down(256, 512)
         self.down4 = Down(512, 512)
 
-        self.att4 = AttentionBlock(512, 512, 256)
-        self.att3 = AttentionBlock(256, 256, 128)
-        self.att2 = AttentionBlock(128, 128, 64)
-        self.att1 = AttentionBlock(64, 64, 32)
+    self.att4 = AttentionBlock(1024, 512, 256)
+    self.att3 = AttentionBlock(512, 256, 128)
+    self.att2 = AttentionBlock(256, 128, 64)
+    self.att1 = AttentionBlock(128, 64, 32)
 
-        self.up1 = Up(512, 256)
-        self.conv1 = DoubleConv(512+512, 256)
-        self.up2 = Up(256, 128)
-        self.conv2 = DoubleConv(256+256, 128)
-        self.up3 = Up(128, 64)
-        self.conv3 = DoubleConv(128+128, 64)
-        self.up4 = Up(64, 64)
-        self.conv4 = DoubleConv(64+64, 64)
-        self.outc = nn.Conv2d(64, 3, kernel_size=1)
+    self.up1 = Up(1024, 512)
+    self.conv1 = DoubleConv(512+512, 256)
+    self.up2 = Up(512, 256)
+    self.conv2 = DoubleConv(256+256, 128)
+    self.up3 = Up(256, 128)
+    self.conv3 = DoubleConv(128+128, 64)
+    self.up4 = Up(128, 64)
+    self.conv4 = DoubleConv(64+64, 64)
+    self.outc = nn.Conv2d(64, 3, kernel_size=1)
 
     def forward(self, x):
         x1 = self.inc(x)      # 64
         x2 = self.down1(x1)  # 128
         x3 = self.down2(x2)  # 256
         x4 = self.down3(x3)  # 512
-        x5 = self.down4(x4)  # 512
+        x5 = self.down4(x4)  # 1024
 
-        x4a = self.att4(g=x5, x=x4)  # 512
+        x4a = self.att4(g=x5, x=x4)  # att4: g=1024, x=512
         x = self.up1(x5)
-        x = torch.cat([x, x4a], dim=1)  # 256+512=768
+        x = torch.cat([x, x4a], dim=1)  # 512+512=1024
         x = self.conv1(x)
 
-        x3a = self.att3(g=x, x=x3)
+        x3a = self.att3(g=x, x=x3)   # att3: g=512, x=256
         x = self.up2(x)
-        x = torch.cat([x, x3a], dim=1)  # 128+256=384
+        x = torch.cat([x, x3a], dim=1)  # 256+256=512
         x = self.conv2(x)
 
-        x2a = self.att2(g=x, x=x2)
+        x2a = self.att2(g=x, x=x2)   # att2: g=256, x=128
         x = self.up3(x)
-        x = torch.cat([x, x2a], dim=1)  # 64+128=192
+        x = torch.cat([x, x2a], dim=1)  # 128+128=256
         x = self.conv3(x)
 
-        x1a = self.att1(g=x, x=x1)
+        x1a = self.att1(g=x, x=x1)   # att1: g=128, x=64
         x = self.up4(x)
         x = torch.cat([x, x1a], dim=1)  # 64+64=128
         x = self.conv4(x)
