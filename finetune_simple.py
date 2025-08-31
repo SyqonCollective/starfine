@@ -60,7 +60,7 @@ class Up(nn.Module):
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
 
-class StarNetSimple(nn.Module):
+class StarNetNoReduce512(nn.Module):
     def __init__(self):
         super().__init__()
         self.inc = DoubleConv(3, 64)
@@ -68,12 +68,15 @@ class StarNetSimple(nn.Module):
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
         self.down4 = Down(512, 512)  # NoReduce512: mantiene 512 canali
-        
-        # Le dimensioni degli Up devono matchare il checkpoint originale
-        self.up1 = Up(1024, 256)     # concat(512 up + 512 skip) = 1024 input, 256 output
-        self.up2 = Up(512, 128)      # concat(256 up + 256 skip) = 512 input, 128 output  
-        self.up3 = Up(256, 64)       # concat(128 up + 128 skip) = 256 input, 64 output
-        self.up4 = Up(128, 64)       # concat(64 up + 64 skip) = 128 input, 64 output
+
+        # up1: concat(512, 512) = 1024 -> 256
+        self.up1 = Up(1024, 256)
+        # up2: concat(256, 256) = 512 -> 128
+        self.up2 = Up(512, 128)
+        # up3: concat(128, 128) = 256 -> 64
+        self.up3 = Up(256, 64)
+        # up4: concat(64, 64) = 128 -> 64
+        self.up4 = Up(128, 64)
         self.outc = nn.Conv2d(64, 3, kernel_size=1)
 
     def forward(self, x):
@@ -163,14 +166,14 @@ def main():
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--patience', type=int, default=15)
     parser.add_argument('--output_dir', type=str, default='./outputs')
-    
+
     args = parser.parse_args()
-    
-    print("🚀 StarNet Fine-tuning SIMPLE")
+
+    print("🚀 StarNet Fine-tuning SIMPLE (NoReduce512)")
     print(f"Model: {args.model_path}")
     print(f"Data: {args.data_dir}")
     print(f"LR: {args.lr}, Epochs: {args.epochs}, Batch: {args.batch_size}")
-    
+
     # Device
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -178,11 +181,11 @@ def main():
     else:
         device = torch.device('cpu')
         print("Using CPU")
-    
+
     # Model
     print("Loading model...")
-    model = StarNetSimple().to(device)
-    
+    model = StarNetNoReduce512().to(device)
+
     if os.path.exists(args.model_path):
         checkpoint = torch.load(args.model_path, map_location=device)
         if 'model_state_dict' in checkpoint:
@@ -192,51 +195,51 @@ def main():
         print("✅ Model loaded")
     else:
         print("⚠️ Model not found, starting from scratch")
-    
+
     # Dataset
     print("Loading dataset...")
     train_input = os.path.join(args.data_dir, 'train', 'input')
     train_target = os.path.join(args.data_dir, 'train', 'target')
     val_input = os.path.join(args.data_dir, 'val', 'input')
     val_target = os.path.join(args.data_dir, 'val', 'target')
-    
+
     train_dataset = SimpleDataset(train_input, train_target)
     val_dataset = SimpleDataset(val_input, val_target)
-    
+
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
-    
+
     # Training setup
     criterion = nn.L1Loss()
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-6)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
-    
+
     os.makedirs(args.output_dir, exist_ok=True)
-    
+
     print(f"\n🔥 Starting training for {args.epochs} epochs...")
-    
+
     best_val_loss = float('inf')
     patience_counter = 0
-    
+
     for epoch in range(args.epochs):
         print(f"\nEpoch {epoch+1}/{args.epochs}")
-        
+
         # Train
         train_loss = train_epoch(model, train_loader, criterion, optimizer, device)
-        
+
         # Validate
         val_loss = validate_epoch(model, val_loader, criterion, device)
-        
+
         # Scheduler
         scheduler.step()
-        
+
         print(f"Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer.param_groups[0]['lr']:.2e}")
-        
+
         # Save best
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
-            
+
             best_path = os.path.join(args.output_dir, 'best_finetuned_model.pth')
             torch.save({
                 'epoch': epoch,
@@ -248,12 +251,12 @@ def main():
             print(f"🎯 New best model saved! Val Loss: {val_loss:.6f}")
         else:
             patience_counter += 1
-        
+
         # Early stopping
         if patience_counter >= args.patience:
             print(f"⏹️ Early stopping after {args.patience} epochs without improvement")
             break
-    
+
     print(f"\n✅ Training completed!")
     print(f"🏆 Best Val Loss: {best_val_loss:.6f}")
     print(f"📁 Model saved in: {args.output_dir}")
