@@ -49,7 +49,7 @@ class Down(nn.Module):
 class Up(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
+        self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
         self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1, x2):
@@ -69,15 +69,12 @@ class StarNetNoReduce512(nn.Module):
         self.down3 = Down(256, 512)
         self.down4 = Down(512, 512)  # NoReduce512: mantiene 512 canali
 
-        # up1: concat(512, 512) = 1024 -> 256
-        self.up1 = Up(1024, 256)
-        # up2: concat(256, 256) = 512 -> 128
-        self.up2 = Up(512, 128)
-        # up3: concat(128, 128) = 256 -> 64
-        self.up3 = Up(256, 64)
-        # up4: concat(64, 64) = 128 -> 64
-        self.up4 = Up(128, 64)
-        self.outc = nn.Conv2d(64, 3, kernel_size=1)
+    # up1: input 512, output 256 (dopo upsample, concat con x4: 512+512=1024)
+    self.up1 = Up(512, 256)
+    self.up2 = Up(256, 128)
+    self.up3 = Up(128, 64)
+    self.up4 = Up(64, 64)
+    self.outc = nn.Conv2d(64, 3, kernel_size=1)
 
     def forward(self, x):
         x1 = self.inc(x)
