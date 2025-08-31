@@ -79,7 +79,7 @@ class AttentionBlock(nn.Module):
     def forward(self, g, x):
         g1 = self.W_g(g)
         x1 = self.W_x(x)
-        # Resize entrambi alla shape massima se diverse
+        # Resize spatial dims to max shape if different
         if g1.shape[2:] != x1.shape[2:]:
             target_shape = (
                 max(g1.shape[2], x1.shape[2]),
@@ -87,8 +87,30 @@ class AttentionBlock(nn.Module):
             )
             g1 = F.interpolate(g1, size=target_shape, mode='bilinear', align_corners=False)
             x1 = F.interpolate(x1, size=target_shape, mode='bilinear', align_corners=False)
+        # Match channels by cutting or padding
+        c1, c2 = g1.shape[1], x1.shape[1]
+        if c1 != c2:
+            if c1 > c2:
+                # Pad x1
+                pad = (0, 0, 0, 0, 0, c1 - c2)
+                x1 = F.pad(x1, pad)
+            else:
+                # Pad g1
+                pad = (0, 0, 0, 0, 0, c2 - c1)
+                g1 = F.pad(g1, pad)
+        # Now safe to add
         psi = self.relu(g1 + x1)
         psi = self.psi(psi)
+        # Also match x channels to psi for multiplication
+        if x.shape[2:] != psi.shape[2:]:
+            psi = F.interpolate(psi, size=x.shape[2:], mode='bilinear', align_corners=False)
+        if x.shape[1] != psi.shape[1]:
+            if x.shape[1] > psi.shape[1]:
+                pad = (0, 0, 0, 0, 0, x.shape[1] - psi.shape[1])
+                psi = F.pad(psi, pad)
+            else:
+                pad = (0, 0, 0, 0, 0, psi.shape[1] - x.shape[1])
+                x = F.pad(x, pad)
         return x * psi
 
 class StarNetNoReduce512(nn.Module):
